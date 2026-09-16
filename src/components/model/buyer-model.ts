@@ -1,47 +1,47 @@
-import { Model } from '../base/model';
 import type { IEvents } from '../base/events';
 import type { IBuyer, IBuyerModel, TPayment } from '../../types';
 
-export class BuyerModel extends Model<IBuyer> implements IBuyerModel {
-	protected readonly eventName = 'buyer:changed';
+export class BuyerModel implements IBuyerModel {
+	private buyer: IBuyer = {
+		payment: '',
+		address: '',
+		email: '',
+		phone: '',
+	};
 
-	constructor(events: IEvents) {
-		super(events);
-		this.data = {
-			payment: '',
-			address: '',
-			email: '',
-			phone: '',
-		};
-	}
+	constructor(private readonly events: IEvents) {}
 
 	setPayment(payment: TPayment): void {
-		this.updateData({ payment });
+		this.buyer.payment = payment;
+		this.events.emit('buyer:changed');
 	}
 
 	setAddress(address: string): void {
-		this.updateData({ address });
+		this.buyer.address = address;
+		this.events.emit('buyer:changed');
 	}
 
 	setEmail(email: string): void {
-		this.updateData({ email });
+		this.buyer.email = email;
+		this.events.emit('buyer:changed');
 	}
 
 	setPhone(phone: string): void {
-		this.updateData({ phone });
+		this.buyer.phone = phone;
+		this.events.emit('buyer:changed');
 	}
 
 	getData(): Partial<IBuyer> {
-		return { ...this.data };
+		return { ...this.buyer };
 	}
 
 	clear(): void {
-		this.data = {
+		this.buyer = {
 			payment: '',
 			address: '',
 			email: '',
 			phone: '',
 		};
-		this.events.emit(this.eventName, this.data);
+		this.events.emit('buyer:changed');
 	}
 }

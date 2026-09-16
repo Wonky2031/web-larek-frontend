@@ -1,49 +1,41 @@
-import { Model } from '../base/model';
 import type { IEvents } from '../base/events';
 import type { IProduct, IBasketModel } from '../../types';
 
-export class BasketModel
-	extends Model<{ items: IProduct[] }>
-	implements IBasketModel
-{
-	protected readonly eventName = 'basket:changed';
+export class BasketModel implements IBasketModel {
+	private items: IProduct[] = [];
 
-	constructor(events: IEvents) {
-		super(events);
-		this.data.items = [];
-	}
+	constructor(private readonly events: IEvents) {}
 
 	add(product: IProduct): void {
 		if (!this.contains(product.id)) {
-			const items = [...this.getItems(), product];
-			this.updateData({ items });
+			this.items.push(product);
+			this.events.emit('basket:changed');
 		}
 	}
 
 	remove(id: string): void {
-		const items = this.getItems().filter((product) => product.id !== id);
-		this.updateData({ items });
+		this.items = this.items.filter((product) => product.id !== id);
+		this.events.emit('basket:changed');
 	}
 
 	clear(): void {
-		this.updateData({ items: [] });
+		this.items = [];
+		this.events.emit('basket:changed');
 	}
 
 	contains(id: string): boolean {
-		return this.getItems().some((product) => product.id === id);
+		return this.items.some((product) => product.id === id);
 	}
 
 	getItems(): IProduct[] {
-		return this.data.items ?? [];
+		return this.items;
 	}
 
 	getTotal(): number {
-		return this.getItems().reduce((sum, product) => {
-			return sum + (product.price ?? 0);
-		}, 0);
+		return this.items.reduce((sum, product) => sum + (product.price ?? 0), 0);
 	}
 
 	getCount(): number {
-		return this.getItems().length;
+		return this.items.length;
 	}
 }

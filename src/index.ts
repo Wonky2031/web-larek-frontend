@@ -9,7 +9,7 @@ import { BuyerModel } from './components/model/buyer-model';
 import { HeaderView } from './components/view/header-view';
 import { CatalogView } from './components/view/catalog-view';
 import { ModalView } from './components/view/modal-view';
-import { CardPreviewView } from './components/view/card-preview-view';
+import { CardView } from './components/view/card-view';
 import { BasketView } from './components/view/basket-view';
 import { OrderFormView } from './components/view/order-form-view';
 import { ContactsFormView } from './components/view/contacts-form-view';
@@ -24,18 +24,35 @@ const productsModel = new ProductsModel(events);
 const basketModel = new BasketModel(events);
 const buyerModel = new BuyerModel(events);
 
-const headerView = new HeaderView(ensureElement<HTMLElement>('.header'));
+const headerView = new HeaderView(
+	ensureElement<HTMLElement>('.header'),
+	events
+);
 const catalogView = new CatalogView(ensureElement<HTMLElement>('.gallery'));
-const modalView = new ModalView(ensureElement<HTMLElement>('#modal-container'));
-const cardPreviewView = new CardPreviewView(
-	cloneTemplate<HTMLElement>('#card-preview')
+const modalView = new ModalView(
+	ensureElement<HTMLElement>('#modal-container'),
+	events
 );
-const basketView = new BasketView(cloneTemplate<HTMLElement>('#basket'));
-const orderFormView = new OrderFormView(cloneTemplate<HTMLElement>('#order'));
+const previewCardView = new CardView(
+	cloneTemplate<HTMLElement>('#card-preview'),
+	events
+);
+const basketView = new BasketView(
+	cloneTemplate<HTMLElement>('#basket'),
+	events
+);
+const orderFormView = new OrderFormView(
+	cloneTemplate<HTMLElement>('#order'),
+	events
+);
 const contactsFormView = new ContactsFormView(
-	cloneTemplate<HTMLElement>('#contacts')
+	cloneTemplate<HTMLElement>('#contacts'),
+	events
 );
-const successView = new SuccessView(cloneTemplate<HTMLElement>('#success'));
+const successView = new SuccessView(
+	cloneTemplate<HTMLElement>('#success'),
+	events
+);
 
 const appPresenter = new AppPresenter(
 	api,
@@ -46,7 +63,7 @@ const appPresenter = new AppPresenter(
 	headerView,
 	catalogView,
 	modalView,
-	cardPreviewView,
+	previewCardView,
 	basketView,
 	orderFormView,
 	contactsFormView,

@@ -3,9 +3,10 @@ import type {
 	IProductListResponse,
 	IOrderRequest,
 	IOrderResponse,
+	IWeblarekApi,
 } from '../types';
 
-export class WeblarekApi {
+export class WeblarekApi implements IWeblarekApi {
 	private readonly api: Api;
 
 	constructor(baseUrl: string, options?: RequestInit) {

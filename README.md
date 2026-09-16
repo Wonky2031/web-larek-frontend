@@ -110,6 +110,15 @@ yarn build
 | `isPlainObject(obj)` | Проверка на «простой» объект |
 | `isBoolean(v)` | Проверка на boolean |
 | `createElement<T>(tag, props?, children?)` | Создает DOM-элементы |
+| `setText(element, value)` | Устанавливает текст элемента |
+| `setImage(element, src, alt?)` | Устанавливает src и alt изображения |
+| `toggleClass(element, className, force?)` | Переключает CSS-класс |
+| `setDisabled(element, state)` | Устанавливает/снимает атрибут disabled |
+| `formatPrice(price)` | Форматирует цену («750 синапсов» / «Бесценно») |
+| `getCategoryClass(category)` | Возвращает CSS-модификатор категории |
+| `toProductView(product)` | Трансформирует `IProduct` в `IProductView` |
+| `validateOrderStep1(data)` | Валидация шага 1 (оплата + адрес) |
+| `validateOrderStep2(data)` | Валидация шага 2 (email + телефон) |
 
 ---
 
@@ -198,28 +207,30 @@ interface IBuyer {
 
 #### События
 
+#### События
+
 ```ts
 type TAppEvent =
   | 'products:loaded'
-  | 'products:error'
+  | 'product:selected'
   | 'basket:changed'
   | 'buyer:changed'
-  | 'order:success'
-  | 'order:error'
-  | 'gallery:render'
-  | 'modal:open'
-  | 'modal:close'
-  | 'card:select'
-  | 'product:toggle'
   | 'basket:open'
-  | 'basket:remove'
+  | 'card:select'
+  | 'card:remove'
+  | 'card:toggle'
+  | 'modal:close'
   | 'order:start'
+  | 'order:payment-change'
+  | 'order:address-change'
   | 'order:next'
+  | 'contacts:email-change'
+  | 'contacts:phone-change'
   | 'contacts:submit'
   | 'success:close';
 ```
 
-Для каждого события с данными объявлен **отдельный payload-интерфейс** (например, `IProductPayload`, `IBasketRemovePayload`).
+Для событий, передающих данные, используются интерфейсы payload'ов (например, `{ id: string }`, `{ payment: TPayment }`).
 
 ---
 ### 2. API-клиент
@@ -229,12 +240,14 @@ type TAppEvent =
 
 ### 3. Модели
 #### 2.1. `ProductsModel`
-**Назначение:** хранит каталог товаров.
+**Назначение:** хранит каталог товаров и выбранный товар.
 
 **Функции:**
-- `setProducts(products: IProduct[])` — сохранить список товаров;
+- `setProducts(products: IProduct[])` — сохранить список товаров (эмитит `products:loaded`);
 - `getProducts(): IProduct[]` — получить список;
-- `getProductById(id: string): IProduct | undefined` — найти товар по id.
+- `getProductById(id: string): IProduct | undefined` — найти товар по id;
+- `setSelectedProduct(product: IProduct | null)` — сохранить выбранный товар (эмитит `product:selected`);
+- `getSelectedProduct(): IProduct | null` — получить выбранный товар.
 
 #### 2.2. `BasketModel`
 
@@ -249,6 +262,8 @@ type TAppEvent =
 - `getTotal(): number` — суммарная стоимость;
 - `getCount(): number` — количество товаров.
 
+При любом изменении эмитит `basket:changed` (без данных).
+
 #### 2.3. `BuyerModel`
 
 **Назначение:** хранит данные покупателя.
@@ -259,8 +274,9 @@ type TAppEvent =
 - `setEmail(email: string)` — email;
 - `setPhone(phone: string)` — телефон;
 - `getData(): Partial<IBuyer>` — все сохранённые данные;
-- `clear()` — сбросить данные после успешного заказа;
-- `validate(): Partial<Record<keyof IBuyer, string>>` — вернуть ошибки валидации.
+- `clear()` — сбросить данные после успешного заказа.
+
+При любом изменении эмитит `buyer:changed` (без данных).
 
 ### 3. Отображения
 
@@ -269,24 +285,23 @@ type TAppEvent =
 **Назначение:** шапка страницы с логотипом и счётчиком корзины.
 
 **Функции:**
-- `render(count: number)` — обновить счётчик;
-- `setBasketHandler(callback)` — подписка на клик по корзине.
+- `render(data: { count: number })` — обновить счётчик.
 
-#### 3.2. `GalleryView`
 
-**Назначение:** контейнер каталога. Рендерит список из `CardView`.
+#### 3.2. `CatalogView`
+
+**Назначение:** контейнер каталога. Рендерит готовый список DOM-элементов карточек.
 
 **Функции:**
-- `render(products: IProduct[])` — очистить и отрисовать карточки;
-- `setSelectHandler(callback)` — подписка на выбор карточки.
+- `render(data: { items: HTMLElement[] })` — вывести список карточек.
 
 #### 3.3. `CardView`
 
-**Назначение:** карточка товара в каталоге.
+**Назначение:** универсальная карточка товара. Работает с шаблонами `#card-catalog`, `#card-basket`, `#card-preview`. Заполняет только те элементы, которые есть в DOM.
 
 **Функции:**
-- `render(product: IProduct)` — заполнить поля: title, image, price, category;
-- `setClickHandler(callback)` — клик по карточке.
+- `render(data: IProductView, options?: { index?: number; inBasket?: boolean })` — заполнить поля: title, image, price, category, description; переключить текст кнопки; вывести индекс.
+
 
 #### 3.4. `ModalView`
 
@@ -294,61 +309,51 @@ type TAppEvent =
 
 **Функции:**
 - `open(content: HTMLElement)` — вставить контент и показать модалку;
-- `close()` — скрыть модалку и очистить контент;
-- `setCloseHandler(callback)` — подписка на крестик и клик вне модального контейнера.
+- `close()` — скрыть модалку и очистить контент.
 
-#### 3.5. `CardPreviewView`
 
-**Назначение:** детальная карточка товара в модалке.
+#### 3.5. `FormView`
 
-**Функции:**
-- `render(product: IProduct, inBasket: boolean)` — заполнить данные и переключить текст кнопки («В корзину» / «Убрать»);
-- `setToggleHandler(callback)` — клик по кнопке.
-
-#### 3.6. `BasketView`
-
-**Назначение:** контент модалки корзины.
+**Назначение:** общий родитель для всех форм. Реализует общий функционал: поиск формы, кнопки submit, контейнера ошибок, подписка на submit, показ ошибок, блокировка кнопки.
 
 **Функции:**
-- `render(items: IProduct[], total: number)` — отрисовать список `BasketItemView` и итог;
-- `setOrderHandler(callback)` — клик по кнопке «Оформить».
+- `setErrors(message: string)` — показать/скрыть сообщение об ошибке;
+- `setDisabledState(disabled: boolean)` — установить состояние кнопки submit.
 
-#### 3.7. `BasketItemView`
-
-**Назначение:** строка товара в корзине.
-
-**Функции:**
-- `render(product: IProduct, index: number)` — заполнить поля;
-- `setDeleteHandler(callback)` — клик по иконке удаления.
-
-#### 3.8. `OrderFormView`
+#### 3.6. `OrderFormView`
 
 **Назначение:** первая форма оформления — способ оплаты и адрес.
 
 **Функции:**
-- `render()` — сбросить состояние;
+- `render(data: { payment: TPayment | ''; address: string })` — отобразить данные из модели;
 - `setPayment(payment)` — выделить выбранный способ;
-- `setAddress(value)` — заполнить поле;
-- `setErrors(errors)` — показать/скрыть сообщения об ошибках;
-- `setSubmitHandler(callback)` — submit формы.
+- `setAddress(value)` — заполнить поле.
 
-#### 3.9. `ContactsFormView`
+
+#### 3.7. `ContactsFormView`
 
 **Назначение:** вторая форма — email и телефон.
 
 **Функции:**
-- `render()` — сбросить состояние;
-- `setEmail(value)`, `setPhone(value)` — заполнить поля;
-- `setErrors(errors)` — показать ошибки;
-- `setSubmitHandler(callback)` — submit формы.
+- `render(data: { email: string; phone: string })` — отобразить данные из модели;
+- `setEmail(value)`, `setPhone(value)` — заполнить поля.
 
-#### 3.10. `SuccessView`
+
+#### 3.8. `BasketView`
+
+**Назначение:** контент модалки корзины.
+
+**Функции:**
+- `render(data: { items: HTMLElement[]; total: string })` — вывести готовый список карточек, итог, показать/скрыть надпись «Корзина пуста», заблокировать кнопку.
+
+
+#### 3.9. `SuccessView`
 
 **Назначение:** модалка успешного оформления.
 
 **Функции:**
-- `render(total: number)` — подставить сумму списания;
-- `setCloseHandler(callback)` — клик по кнопке «За новыми покупками!».
+- `render(data: { total: string })` — подставить сумму списания.
+
 
 ### 4. Презентер
 
@@ -357,16 +362,26 @@ type TAppEvent =
 **Назначение:** единая точка связи Model и View. Инициализирует приложение, загружает данные, обрабатывает пользовательские сценарии.
 
 **Функции:**
-- `init()` — запуск: загрузка товаров, отрисовка галереи, подписка на события;
-- обработка `card:select` → открыть модалку с `CardPreviewView`;
-- обработка `product:toggle` → add/remove в `BasketModel`, обновить кнопку;
-- обработка `basket:open` → открыть модалку с `BasketView`;
-- обработка `basket:remove` → удалить из модели, обновить модалку и счётчик;
-- обработка `order:start` → открыть модалку с `OrderFormView`;
-- обработка `order:next` → сохранить в `BuyerModel`, открыть `ContactsFormView`;
-- обработка `contacts:submit` → валидация, `POST /order`, открыть `SuccessView`, очистить корзину и `BuyerModel`;
-- обработка `success:close` → закрыть модалку;
-- обработка `modal:close` → закрыть модалку.
+- `init()` — запуск: загрузка товаров, отрисовка галереи, первичный рендер корзины, подписка на события;
+- обработка `products:loaded` → отрисовка каталога;
+- обработка `product:selected` → рендер превью, открытие модалки;
+- обработка `basket:changed` → обновление счётчика, рендер корзины и превью (если открыто);
+- обработка `buyer:changed` → обновление состояния форм;
+- обработка `basket:open` → открытие модалки корзины;
+- обработка `card:select` → сохранение выбранного товара в модель;
+- обработка `card:remove` → удаление из корзины;
+- обработка `card:toggle` → add/remove в корзине;
+- обработка `modal:close` → закрытие модалки, сброс выбранного товара;
+- обработка `order:start` → открытие формы шага 1;
+- обработка `order:payment-change` / `order:address-change` → сохранение в `BuyerModel`;
+- обработка `order:next` → открытие формы шага 2;
+- обработка `contacts:email-change` / `contacts:phone-change` → сохранение в `BuyerModel`;
+- обработка `contacts:submit` → валидация, `POST /order`, открытие `SuccessView`, очистка корзины и `BuyerModel`;
+- обработка `success:close` → закрытие модалки, сброс выбранного товара.
 
+**Особенности:**
+- Все зависимости — через интерфейсы (инверсия зависимостей).
+- Presenter не эмитит события — только обрабатывает их.
+- Состояния хранятся только в моделях.
 ___
 

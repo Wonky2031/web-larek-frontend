@@ -1,4 +1,9 @@
-import type { IProduct, IProductView, TCategoryClass } from '../types';
+import type {
+	IProduct,
+	IProductView,
+	TCategoryClass,
+	TPayment,
+} from '../types';
 import { CDN_URL, categoryMap } from './constants';
 
 export function pascalToKebab(value: string): string {
@@ -164,4 +169,67 @@ export function toProductView(product: IProduct): IProductView {
 		category: product.category,
 		categoryClass: getCategoryClass(product.category),
 	};
+}
+
+export function validateOrderStep1(data: {
+	payment: TPayment | '';
+	address: string;
+}): string {
+	const errors: string[] = [];
+
+	if (!data.payment) {
+		errors.push('Выберите способ оплаты');
+	}
+
+	if (!data.address || data.address.trim() === '') {
+		errors.push('Укажите адрес доставки');
+	}
+
+	return errors.join('. ');
+}
+
+export function validateOrderStep2(data: {
+	email: string;
+	phone: string;
+}): string {
+	const errors: string[] = [];
+
+	if (!data.email || data.email.trim() === '') {
+		errors.push('Укажите email');
+	}
+
+	if (!data.phone || data.phone.trim() === '') {
+		errors.push('Укажите телефон');
+	}
+
+	return errors.join('. ');
+}
+
+export function setText(element: HTMLElement, value: unknown): void {
+	element.textContent = String(value);
+}
+
+export function setImage(
+	element: HTMLImageElement,
+	src: string,
+	alt = ''
+): void {
+	element.src = src;
+	element.alt = alt;
+}
+
+export function toggleClass(
+	element: HTMLElement,
+	className: string,
+	force?: boolean
+): void {
+	element.classList.toggle(className, force);
+}
+
+export function setDisabled(element: HTMLElement, state: boolean): void {
+	if (state) {
+		element.setAttribute('disabled', 'disabled');
+	} else {
+		element.removeAttribute('disabled');
+	}
 }

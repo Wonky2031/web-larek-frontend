@@ -1,27 +1,31 @@
-import { Model } from '../base/model';
 import type { IEvents } from '../base/events';
 import type { IProduct, IProductsModel } from '../../types';
 
-export class ProductsModel
-	extends Model<{ products: IProduct[] }>
-	implements IProductsModel
-{
-	protected readonly eventName = 'products:loaded';
+export class ProductsModel implements IProductsModel {
+	private products: IProduct[] = [];
+	private selectedProduct: IProduct | null = null;
 
-	constructor(events: IEvents) {
-		super(events);
-		this.data.products = [];
-	}
+	constructor(private readonly events: IEvents) {}
 
 	setProducts(products: IProduct[]): void {
-		this.updateData({ products });
+		this.products = products;
+		this.events.emit('products:loaded');
 	}
 
 	getProducts(): IProduct[] {
-		return this.data.products ?? [];
+		return this.products;
 	}
 
 	getProductById(id: string): IProduct | undefined {
-		return this.getProducts().find((product) => product.id === id);
+		return this.products.find((product) => product.id === id);
+	}
+
+	setSelectedProduct(product: IProduct | null): void {
+		this.selectedProduct = product;
+		this.events.emit('product:selected');
+	}
+
+	getSelectedProduct(): IProduct | null {
+		return this.selectedProduct;
 	}
 }

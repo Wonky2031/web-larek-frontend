@@ -1,37 +1,21 @@
 import { Component } from '../base/component';
-import { CardView } from './card-view';
-import { cloneTemplate } from '../../utils/utils';
-import type { ICatalogView, IProductView } from '../../types';
+import type { ICatalogView } from '../../types';
 
 export class CatalogView
-	extends Component<{ products: IProductView[] }>
+	extends Component<{ items: HTMLElement[] }>
 	implements ICatalogView
 {
-	private onSelect: ((product: IProductView) => void) | null = null;
-
 	constructor(container: HTMLElement) {
 		super(container);
 	}
 
-	render(data: { products: IProductView[] }): HTMLElement {
+	render(data: { items: HTMLElement[] }): HTMLElement {
 		this.element.innerHTML = '';
 
-		data.products.forEach((product) => {
-			const cardElement = cloneTemplate<HTMLElement>('#card-catalog');
-			const cardView = new CardView(cardElement);
-
-			cardView.render(product);
-			cardView.setClickHandler(() => {
-				this.onSelect?.(product);
-			});
-
-			this.element.append(cardElement);
+		data.items.forEach((item) => {
+			this.element.append(item);
 		});
 
 		return this.element;
-	}
-
-	setSelectHandler(callback: (product: IProductView) => void): void {
-		this.onSelect = callback;
 	}
 }

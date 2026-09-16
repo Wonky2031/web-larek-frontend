@@ -1,22 +1,16 @@
-import { Component } from '../base/component';
-import { ensureElement } from '../../utils/utils';
+import { FormView } from './form-view';
+import { ensureElement, toggleClass } from '../../utils/utils';
 import type { IOrderFormView, TPayment } from '../../types';
+import type { IEvents } from '../base/events';
 
-export class OrderFormView extends Component implements IOrderFormView {
-	protected readonly formElement: HTMLFormElement;
+export class OrderFormView extends FormView implements IOrderFormView {
 	protected readonly cardButton: HTMLButtonElement;
 	protected readonly cashButton: HTMLButtonElement;
 	protected readonly addressInput: HTMLInputElement;
-	protected readonly submitButton: HTMLButtonElement;
-	protected readonly errorsElement: HTMLElement;
 
-	private onPaymentChange: ((payment: TPayment) => void) | null = null;
-	private onAddressChange: ((address: string) => void) | null = null;
-	private onSubmit: (() => void) | null = null;
+	constructor(container: HTMLElement, events: IEvents) {
+		super(container, events, 'order:next');
 
-	constructor(container: HTMLElement) {
-		super(container);
-		this.formElement = container as HTMLFormElement;
 		this.cardButton = ensureElement<HTMLButtonElement>(
 			'button[name="card"]',
 			container
@@ -29,62 +23,30 @@ export class OrderFormView extends Component implements IOrderFormView {
 			'input[name="address"]',
 			container
 		);
-		this.submitButton = ensureElement<HTMLButtonElement>(
-			'.order__button',
-			container
-		);
-		this.errorsElement = ensureElement<HTMLElement>('.form__errors', container);
 
 		this.cardButton.addEventListener('click', () => {
-			this.onPaymentChange?.('card');
+			events.emit('order:payment-change', { payment: 'card' });
 		});
 		this.cashButton.addEventListener('click', () => {
-			this.onPaymentChange?.('cash');
+			events.emit('order:payment-change', { payment: 'cash' });
 		});
 		this.addressInput.addEventListener('input', () => {
-			this.onAddressChange?.(this.addressInput.value);
-		});
-		this.formElement.addEventListener('submit', (event) => {
-			event.preventDefault();
-			this.onSubmit?.();
+			events.emit('order:address-change', { address: this.addressInput.value });
 		});
 	}
 
-	render(): HTMLElement {
-		this.formElement.reset();
-		this.setPayment('');
-		this.setAddress('');
-		this.setErrors('');
-		this.setDisabled(this.submitButton, true);
+	render(data: { payment: TPayment | ''; address: string }): HTMLElement {
+		this.setPayment(data.payment);
+		this.setAddress(data.address);
 		return this.element;
 	}
 
 	setPayment(payment: TPayment | ''): void {
-		this.toggleClass(this.cardButton, 'button_alt-active', payment === 'card');
-		this.toggleClass(this.cashButton, 'button_alt-active', payment === 'cash');
+		toggleClass(this.cardButton, 'button_alt-active', payment === 'card');
+		toggleClass(this.cashButton, 'button_alt-active', payment === 'cash');
 	}
 
 	setAddress(value: string): void {
 		this.addressInput.value = value;
-	}
-
-	setErrors(message: string): void {
-		this.setText(this.errorsElement, message);
-	}
-
-	setDisabledState(disabled: boolean): void {
-		this.setDisabled(this.submitButton, disabled);
-	}
-
-	setPaymentChangeHandler(callback: (payment: TPayment) => void): void {
-		this.onPaymentChange = callback;
-	}
-
-	setAddressChangeHandler(callback: (address: string) => void): void {
-		this.onAddressChange = callback;
-	}
-
-	setSubmitHandler(callback: () => void): void {
-		this.onSubmit = callback;
 	}
 }

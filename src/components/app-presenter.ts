@@ -1,64 +1,68 @@
-import { toProductView, formatPrice } from '../utils/utils';
-import { ModalView } from './view/modal-view';
-import { HeaderView } from './view/header-view';
-import { CatalogView } from './view/catalog-view';
-import { CardPreviewView } from './view/card-preview-view';
-import { BasketView } from './view/basket-view';
-import { OrderFormView } from './view/order-form-view';
-import { ContactsFormView } from './view/contacts-form-view';
-import { SuccessView } from './view/success-view';
+import {
+	toProductView,
+	formatPrice,
+	validateOrderStep1,
+	validateOrderStep2,
+	cloneTemplate,
+} from '../utils/utils';
+import { CardView } from './view/card-view';
 import type { IEvents } from './base/events';
-import type { WeblarekApi } from './weblarek-api';
-import type { ProductsModel } from './model/products-model';
-import type { BasketModel } from './model/basket-model';
-import type { BuyerModel } from './model/buyer-model';
 import type {
+	IWeblarekApi,
+	IProductsModel,
+	IBasketModel,
+	IBuyerModel,
+	IHeaderView,
+	ICatalogView,
+	IModalView,
+	ICardView,
+	IBasketView,
+	IOrderFormView,
+	IContactsFormView,
+	ISuccessView,
 	IProduct,
-	IProductsLoadedPayload,
-	IOrderResponse,
-	IProductView,
 	TPayment,
 } from '../types';
 
 export class AppPresenter {
 	constructor(
-		private readonly api: WeblarekApi,
+		private readonly api: IWeblarekApi,
 		private readonly events: IEvents,
-		private readonly productsModel: ProductsModel,
-		private readonly basketModel: BasketModel,
-		private readonly buyerModel: BuyerModel,
-
-		private readonly headerView: HeaderView,
-		private readonly catalogView: CatalogView,
-		private readonly modalView: ModalView,
-		private readonly cardPreviewView: CardPreviewView,
-		private readonly basketView: BasketView,
-		private readonly orderFormView: OrderFormView,
-		private readonly contactsFormView: ContactsFormView,
-		private readonly successView: SuccessView
+		private readonly productsModel: IProductsModel,
+		private readonly basketModel: IBasketModel,
+		private readonly buyerModel: IBuyerModel,
+		private readonly headerView: IHeaderView,
+		private readonly catalogView: ICatalogView,
+		private readonly modalView: IModalView,
+		private readonly previewCardView: ICardView,
+		private readonly basketView: IBasketView,
+		private readonly orderFormView: IOrderFormView,
+		private readonly contactsFormView: IContactsFormView,
+		private readonly successView: ISuccessView
 	) {}
 
 	init(): void {
 		this.setupEventListeners();
-		this.setupViewHandlers();
 		this.loadProducts();
+		this.renderBasketContent();
 	}
 
 	private setupEventListeners(): void {
-		this.events.on<IProductsLoadedPayload>(
-			'products:loaded',
-			({ products }) => {
-				const productViews = products.map(toProductView);
-				this.catalogView.render({ products: productViews });
-			}
-		);
+		this.events.on('products:loaded', () => {
+			this.renderCatalog();
+		});
 
-		this.events.on<{ error: string }>('products:error', ({ error }) => {
-			console.error('Ошибка загрузки товаров:', error);
+		this.events.on('product:selected', () => {
+			const product = this.productsModel.getSelectedProduct();
+  		if (!product) return;
+			this.renderPreview();
+  		this.modalView.open(this.previewCardView.element);
 		});
 
 		this.events.on('basket:changed', () => {
 			this.headerView.render({ count: this.basketModel.getCount() });
+			this.renderBasketContent();
+			this.updatePreviewState();
 		});
 
 		this.events.on('buyer:changed', () => {
@@ -66,131 +70,121 @@ export class AppPresenter {
 			this.updateContactsFormState();
 		});
 
-		this.events.on<{ order: IOrderResponse }>('order:success', ({ order }) => {
-			const total = formatPrice(order.total);
-			this.modalView.open(this.successView.render({ total }));
-			this.basketModel.clear();
-			this.buyerModel.clear();
-		});
-
-		this.events.on<{ error: string }>('order:error', ({ error }) => {
-			this.contactsFormView.setErrors(error);
-		});
-	}
-
-	private setupViewHandlers(): void {
-		this.headerView.setBasketHandler(() => {
+		this.events.on('basket:open', () => {
 			this.openBasket();
 		});
 
-		this.catalogView.setSelectHandler((productView) => {
-			this.openProductPreview(productView);
+		this.events.on<{ id: string }>('card:select', ({ id }) => {
+			const product = this.productsModel.getProductById(id);
+			if (product) {
+				this.productsModel.setSelectedProduct(product);
+			}
 		});
 
-		this.modalView.setCloseHandler(() => {
+		this.events.on<{ id: string }>('card:remove', ({ id }) => {
+			this.basketModel.remove(id);
+		});
+
+		this.events.on<{ id: string }>('card:toggle', ({ id }) => {
+			const product = this.productsModel.getProductById(id);
+			if (product) {
+				this.toggleProduct(product);
+			}
+		});
+
+		this.events.on('modal:close', () => {
 			this.modalView.close();
+			this.productsModel.setSelectedProduct(null);
 		});
 
-		this.cardPreviewView.setToggleHandler(() => {
-			this.toggleProduct();
-		});
-
-		this.basketView.setOrderHandler(() => {
+		this.events.on('order:start', () => {
 			this.openOrderForm();
 		});
 
-		this.basketView.setRemoveHandler((id) => {
-			this.basketModel.remove(id);
-			const items = this.basketModel.getItems().map(toProductView);
-			const total = formatPrice(this.basketModel.getTotal());
-			this.basketView.render({ items, total });
-		});
+		this.events.on<{ payment: TPayment }>(
+			'order:payment-change',
+			({ payment }) => {
+				this.buyerModel.setPayment(payment);
+			}
+		);
 
-		this.orderFormView.setPaymentChangeHandler((payment) => {
-			this.buyerModel.setPayment(payment);
-		});
-		this.orderFormView.setAddressChangeHandler((address) => {
-			this.buyerModel.setAddress(address);
-		});
-		this.orderFormView.setSubmitHandler(() => {
+		this.events.on<{ address: string }>(
+			'order:address-change',
+			({ address }) => {
+				this.buyerModel.setAddress(address);
+			}
+		);
+
+		this.events.on('order:next', () => {
 			this.openContactsForm();
 		});
 
-		this.contactsFormView.setEmailChangeHandler((email) => {
+		this.events.on<{ email: string }>('contacts:email-change', ({ email }) => {
 			this.buyerModel.setEmail(email);
 		});
-		this.contactsFormView.setPhoneChangeHandler((phone) => {
+
+		this.events.on<{ phone: string }>('contacts:phone-change', ({ phone }) => {
 			this.buyerModel.setPhone(phone);
 		});
-		this.contactsFormView.setSubmitHandler(() => {
+
+		this.events.on('contacts:submit', () => {
 			this.submitOrder();
 		});
 
-		this.successView.setCloseHandler(() => {
+		this.events.on('success:close', () => {
 			this.modalView.close();
+			this.productsModel.setSelectedProduct(null);
 		});
 	}
 
-	private loadProducts(): void {
-		this.api
-			.getProductList()
-			.then((data) => {
-				this.productsModel.setProducts(data.items);
-			})
-			.catch((error: unknown) => {
-				const message = error instanceof Error ? error.message : String(error);
-				this.events.emit('products:error', { error: message });
-			});
+	private renderCatalog(): void {
+		const products = this.productsModel.getProducts();
+
+		const itemElements = products.map((product) => {
+			const cardElement = cloneTemplate<HTMLElement>('#card-catalog');
+			const cardView = new CardView(cardElement, this.events);
+
+			cardView.render(toProductView(product));
+			return cardElement;
+		});
+
+		this.catalogView.render({ items: itemElements });
 	}
 
-	private openProductPreview(productView: IProductView): void {
-		const product = this.productsModel.getProductById(productView.id);
+	private renderPreview(): void {
+		const product = this.productsModel.getSelectedProduct();
 		if (!product) return;
 
-		this.currentProduct = product;
+		const productView = toProductView(product);
 		const inBasket = this.basketModel.contains(product.id);
-		const content = this.cardPreviewView.render({
-			product: productView,
-			inBasket,
-		});
-		this.modalView.open(content);
+		this.previewCardView.render(productView, { inBasket });
 	}
 
-	private toggleProduct(): void {
-		const product = this.currentProduct;
-		if (!product) return;
-
+	private toggleProduct(product: IProduct): void {
 		if (this.basketModel.contains(product.id)) {
 			this.basketModel.remove(product.id);
 		} else {
 			this.basketModel.add(product);
 		}
-
-		const inBasket = this.basketModel.contains(product.id);
-		const productView = toProductView(product);
-		this.cardPreviewView.render({ product: productView, inBasket });
-	}
-
-	private openBasket(): void {
-		const items = this.basketModel.getItems().map(toProductView);
-		const total = formatPrice(this.basketModel.getTotal());
-		const content = this.basketView.render({ items, total });
-		this.modalView.open(content);
 	}
 
 	private openOrderForm(): void {
-		this.orderFormView.render();
 		const buyer = this.buyerModel.getData();
-		this.orderFormView.setPayment(buyer.payment ?? '');
-		this.orderFormView.setAddress(buyer.address ?? '');
+		this.orderFormView.render({
+			payment: buyer.payment ?? '',
+			address: buyer.address ?? '',
+		});
+		this.updateOrderFormState();
 		this.modalView.open(this.orderFormView.element);
 	}
 
 	private openContactsForm(): void {
-		this.contactsFormView.render();
 		const buyer = this.buyerModel.getData();
-		this.contactsFormView.setEmail(buyer.email ?? '');
-		this.contactsFormView.setPhone(buyer.phone ?? '');
+		this.contactsFormView.render({
+			email: buyer.email ?? '',
+			phone: buyer.phone ?? '',
+		});
+		this.updateContactsFormState();
 		this.modalView.open(this.contactsFormView.element);
 	}
 
@@ -207,26 +201,75 @@ export class AppPresenter {
 				items: this.basketModel.getItems().map((p) => p.id),
 			})
 			.then((order) => {
-				this.events.emit('order:success', { order });
+				const total = formatPrice(order.total);
+				this.modalView.open(this.successView.render({ total }));
+				this.basketModel.clear();
+				this.buyerModel.clear();
 			})
 			.catch((error: unknown) => {
 				const message = error instanceof Error ? error.message : String(error);
-				this.events.emit('order:error', { error: message });
+				this.contactsFormView.setErrors(message);
+			});
+	}
+
+	private loadProducts(): void {
+		this.api
+			.getProductList()
+			.then((data) => {
+				this.productsModel.setProducts(data.items);
+			})
+			.catch((error: unknown) => {
+				const message = error instanceof Error ? error.message : String(error);
+				console.error('Ошибка загрузки товаров:', message);
 			});
 	}
 
 	private updateOrderFormState(): void {
 		const buyer = this.buyerModel.getData();
 		this.orderFormView.setPayment(buyer.payment ?? '');
-		const isValid = Boolean(buyer.payment) && Boolean(buyer.address);
-		this.orderFormView.setDisabledState(!isValid);
+
+		const error = validateOrderStep1({
+			payment: buyer.payment ?? '',
+			address: buyer.address ?? '',
+		});
+
+		this.orderFormView.setErrors(error);
+		this.orderFormView.setDisabledState(error !== '');
 	}
 
 	private updateContactsFormState(): void {
 		const buyer = this.buyerModel.getData();
-		const isValid = Boolean(buyer.email) && Boolean(buyer.phone);
-		this.contactsFormView.setDisabledState(!isValid);
+		const error = validateOrderStep2({
+			email: buyer.email ?? '',
+			phone: buyer.phone ?? '',
+		});
+
+		this.contactsFormView.setErrors(error);
+		this.contactsFormView.setDisabledState(error !== '');
 	}
 
-	private currentProduct: IProduct | null = null;
+	private updatePreviewState(): void {
+		const isOpen = this.modalView.element.contains(this.previewCardView.element);
+  	if (!isOpen) return;
+  	this.renderPreview();
+	}
+
+	private openBasket(): void {
+		this.modalView.open(this.basketView.element);
+	}
+
+	private renderBasketContent(): void {
+		const products = this.basketModel.getItems();
+
+		const itemElements = products.map((product, index) => {
+			const cardElement = cloneTemplate<HTMLElement>('#card-basket');
+			const cardView = new CardView(cardElement, this.events);
+
+			cardView.render(toProductView(product), { index: index + 1 });
+			return cardElement;
+		});
+
+		const total = formatPrice(this.basketModel.getTotal());
+		this.basketView.render({ items: itemElements, total });
+	}
 }

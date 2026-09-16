@@ -72,6 +72,8 @@ export interface IProductsModel {
 	setProducts(products: IProduct[]): void;
 	getProducts(): IProduct[];
 	getProductById(id: string): IProduct | undefined;
+	setSelectedProduct(product: IProduct | null): void;
+	getSelectedProduct(): IProduct | null;
 }
 
 export interface IBasketModel {
@@ -99,135 +101,64 @@ export interface IView {
 
 export interface IHeaderView extends IView {
 	render(data: { count: number }): HTMLElement;
-	setBasketHandler(callback: () => void): void;
 }
 
 export interface ICatalogView extends IView {
-	render(data: { products: IProductView[] }): HTMLElement;
-	setSelectHandler(callback: (product: IProductView) => void): void;
+	render(data: { items: HTMLElement[] }): HTMLElement;
 }
 
 export interface ICardView extends IView {
-	render(data: IProductView): HTMLElement;
-	setClickHandler(callback: () => void): void;
+	render(
+		data: IProductView,
+		options?: { index?: number; inBasket?: boolean }
+	): HTMLElement;
 }
 
 export interface IModalView extends IView {
 	open(content: HTMLElement): void;
 	close(): void;
-	setCloseHandler(callback: () => void): void;
-}
-
-export interface ICardPreviewView extends IView {
-	render(data: { product: IProductView; inBasket: boolean }): HTMLElement;
-	setToggleHandler(callback: () => void): void;
 }
 
 export interface IBasketView extends IView {
-	render(data: { items: IProductView[]; total: string }): HTMLElement;
-	setOrderHandler(callback: () => void): void;
-	setRemoveHandler(callback: (id: string) => void): void;
+	render(data: { items: HTMLElement[]; total: string }): HTMLElement;
 }
 
-export interface IBasketItemView extends IView {
-	render(data: { product: IProductView; index: number }): HTMLElement;
-	setDeleteHandler(callback: () => void): void;
+export interface IFormView extends IView {
+	setErrors(message: string): void;
+	setDisabledState(disabled: boolean): void;
 }
 
-export interface IOrderFormView extends IView {
-	render(): HTMLElement;
+export interface IOrderFormView extends IFormView {
+	render(data: { payment: TPayment | ''; address: string }): HTMLElement;
 	setPayment(payment: TPayment | ''): void;
 	setAddress(value: string): void;
-	setErrors(message: string): void;
-	setDisabledState(disabled: boolean): void;
-	setPaymentChangeHandler(callback: (payment: TPayment) => void): void;
-	setAddressChangeHandler(callback: (address: string) => void): void;
-	setSubmitHandler(callback: () => void): void;
 }
 
-export interface IContactsFormView extends IView {
-	render(): HTMLElement;
+export interface IContactsFormView extends IFormView {
+	render(data: { email: string; phone: string }): HTMLElement;
 	setEmail(value: string): void;
 	setPhone(value: string): void;
-	setErrors(message: string): void;
-	setDisabledState(disabled: boolean): void;
-	setEmailChangeHandler(callback: (value: string) => void): void;
-	setPhoneChangeHandler(callback: (value: string) => void): void;
-	setSubmitHandler(callback: () => void): void;
 }
 
 export interface ISuccessView extends IView {
 	render(data: { total: string }): HTMLElement;
-	setCloseHandler(callback: () => void): void;
 }
 
 export type TAppEvent =
 	| 'products:loaded'
-	| 'products:error'
 	| 'basket:changed'
 	| 'buyer:changed'
-	| 'order:success'
-	| 'order:error'
-	| 'gallery:render'
-	| 'modal:open'
-	| 'modal:close'
-	| 'card:select'
-	| 'product:toggle'
+	| 'product:selected'
 	| 'basket:open'
-	| 'basket:remove'
+	| 'card:select'
+	| 'card:remove'
+	| 'card:toggle'
+	| 'modal:close'
 	| 'order:start'
+	| 'order:payment-change'
+	| 'order:address-change'
 	| 'order:next'
+	| 'contacts:email-change'
+	| 'contacts:phone-change'
 	| 'contacts:submit'
 	| 'success:close';
-
-export interface IProductsLoadedPayload {
-	products: IProduct[];
-}
-
-export interface IProductsErrorPayload {
-	error: string;
-}
-
-export interface IBasketChangedPayload {
-	items: IProduct[];
-	total: number;
-	count: number;
-}
-
-export interface IBuyerChangedPayload {
-	data: Partial<IBuyer>;
-}
-
-export interface IOrderSuccessPayload {
-	order: IOrderResponse;
-}
-
-export interface IOrderErrorPayload {
-	error: string;
-}
-
-export interface IProductPayload {
-	product: IProduct;
-}
-
-export interface IGalleryRenderPayload {
-	products: IProduct[];
-}
-
-export interface IModalOpenPayload {
-	content: HTMLElement;
-}
-
-export interface IBasketRemovePayload {
-	id: string;
-}
-
-export interface IOrderNextPayload {
-	payment: TPayment;
-	address: string;
-}
-
-export interface IContactsSubmitPayload {
-	email: string;
-	phone: string;
-}

@@ -1,14 +1,13 @@
 import { Component } from '../base/component';
 import { ensureElement } from '../../utils/utils';
 import type { IModalView } from '../../types';
+import type { IEvents } from '../base/events';
 
 export class ModalView extends Component implements IModalView {
 	protected readonly closeButton: HTMLButtonElement;
 	protected readonly contentElement: HTMLElement;
-	protected readonly containerElement: HTMLElement;
-	private onClose: (() => void) | null = null;
 
-	constructor(container: HTMLElement) {
+	constructor(container: HTMLElement, events: IEvents) {
 		super(container);
 
 		this.closeButton = ensureElement<HTMLButtonElement>(
@@ -19,18 +18,14 @@ export class ModalView extends Component implements IModalView {
 			'.modal__content',
 			container
 		);
-		this.containerElement = ensureElement<HTMLElement>(
-			'.modal__container',
-			container
-		);
 
 		this.closeButton.addEventListener('click', () => {
-			this.onClose?.();
+			events.emit('modal:close');
 		});
 
 		this.element.addEventListener('click', (event) => {
 			if (event.target === this.element) {
-				this.onClose?.();
+				events.emit('modal:close');
 			}
 		});
 	}
@@ -39,14 +34,12 @@ export class ModalView extends Component implements IModalView {
 		this.contentElement.innerHTML = '';
 		this.contentElement.append(content);
 		this.element.classList.add('modal_active');
+		document.body.classList.add('modal-open');
 	}
 
 	close(): void {
 		this.contentElement.innerHTML = '';
 		this.element.classList.remove('modal_active');
-	}
-
-	setCloseHandler(callback: () => void): void {
-		this.onClose = callback;
+		document.body.classList.remove('modal-open');
 	}
 }
